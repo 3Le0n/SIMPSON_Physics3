@@ -9,28 +9,28 @@
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
 
 :root {
-–bg: #0d0f14;
-–surface: #161922;
-–surface2: #1e2330;
-–surface3: #252c3d;
-–border: #2e3650;
-–accent: #4f9eff;
-–accent2: #ff6b6b;
-–accent3: #6bffb8;
-–accent4: #ffd166;
-–text: #e8ecf4;
-–text2: #8b94b0;
-–text3: #5a6180;
-–A: #4f9eff;
-–B: #ff6b6b;
-–C: #6bffb8;
-–glow: 0 0 20px rgba(79,158,255,0.3);
+–bg:       #111318;
+–surface:  #1e2230;
+–surface2: #252b3d;
+–surface3: #2e3550;
+–border:   #3a4466;
+–accent:   #4f9eff;
+–accent2:  #ff6b6b;
+–accent3:  #6bffb8;
+–accent4:  #ffd166;
+–text:     #e8ecf4;
+–text2:    #8b94b0;
+–text3:    #6a74a0;
+–A:        #4f9eff;
+–B:        #ff6b6b;
+–C:        #6bffb8;
+–glow:     0 0 20px rgba(79,158,255,0.3);
 }
 
 - { box-sizing: border-box; margin: 0; padding: 0; }
 
 html {
-background: #0d0f14;
+background: #111318;
 }
 
 body {
@@ -44,14 +44,15 @@ overflow-x: hidden;
 /* ── Header ── */
 header {
 padding: 12px 16px;
-border-bottom: 1px solid var(–border);
+border-bottom: 2px solid var(–border);
 display: flex;
 align-items: center;
 justify-content: space-between;
 background: var(–surface);
 gap: 8px;
 flex-wrap: nowrap;
-min-height: 48px;
+min-height: 52px;
+box-shadow: 0 2px 12px rgba(0,0,0,0.4);
 }
 header h1 {
 font-size: clamp(0.78rem, 3vw, 1.15rem);
@@ -110,13 +111,14 @@ background: var(–surface);
 border: 1px solid var(–border);
 border-radius: 16px;
 padding: 22px;
+box-shadow: 0 2px 16px rgba(0,0,0,0.5);
 }
 .card-title {
 font-size: 0.72rem;
 font-weight: 700;
 letter-spacing: 0.12em;
 text-transform: uppercase;
-color: var(–text3);
+color: var(–text2);
 margin-bottom: 14px;
 display: flex;
 align-items: center;
