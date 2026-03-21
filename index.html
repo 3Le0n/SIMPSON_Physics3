@@ -418,7 +418,6 @@ color: #c084fc;
 <header>
   <h1>물체계의 운동 <span>—</span> 자유물체도 단계 학습</h1>
   <div class="header-right">
-    <div class="score-badge">점수 <span id="hdr-score">0</span></div>
     <div class="credit-badge"><span>조준현T</span></div>
   </div>
 </header>
@@ -429,14 +428,14 @@ color: #c084fc;
 
   <div class="card full-width">
     <div class="card-title">상황 선택</div>
-    <div class="scenario-tabs">
-      <button class="scenario-btn active" onclick="setScenario(1)">① A·B 2물체 (수평)</button>
-      <button class="scenario-btn" onclick="setScenario(2)">② A·B·C 3물체 (수평)</button>
+    <div class="scenario-tabs" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <button class="scenario-btn active" onclick="setScenario(1)">두 물체</button>
+      <button class="scenario-btn" onclick="setScenario(2)">세 물체</button>
     </div>
     <div class="sliders" id="slider-area"></div>
     <div id="force-mode-row" style="margin-top:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       <span style="font-size:0.78rem; color:#8b94b0;">힘의 방향:</span>
-      <button class="fmode-btn active" id="fmode-one" onclick="setForceMode('one')">한쪽만 (왼→오)</button>
+      <button class="fmode-btn active" id="fmode-one" onclick="setForceMode('one')">한쪽만</button>
       <button class="fmode-btn" id="fmode-both" onclick="setForceMode('both')">양쪽에서 작용</button>
       <span style="font-size:0.78rem; color:#3a4466; margin-left:4px;">|</span>
       <button class="fmode-btn" id="fmode-random" onclick="doRandom()" style="border-color:#ffd166; color:#ffd166;">🎲 랜덤 문제</button>
@@ -446,29 +445,15 @@ color: #c084fc;
 
   <!-- ② 다이어그램 -->
 
-  <div class="card">
+  <div class="card full-width">
     <div class="card-title">물체 배치도</div>
-    <canvas id="diagram-canvas" height="180"></canvas>
+    <canvas id="diagram-canvas" height="190"></canvas>
   </div>
 
-  <!-- ③ 단계별 풀이 가이드 -->
-
-  <div class="card">
-    <div class="card-title">단계별 풀이</div>
-    <div class="steps" id="steps-container"></div>
-  </div>
-
-  <!-- ④ 자유물체도 -->
+  <!-- ③ 풀어보기 (배치도 바로 아래) -->
 
   <div class="card full-width">
-    <div class="card-title">자유물체도 (Free Body Diagram)</div>
-    <div class="fbd-row" id="fbd-area"></div>
-  </div>
-
-  <!-- ⑤ 연습 문제 입력 -->
-
-  <div class="card full-width">
-    <div class="card-title">직접 풀어보기</div>
+    <div class="card-title">풀어보기</div>
     <div class="quiz-section" id="quiz-area"></div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="checkAnswers()">정답 확인</button>
@@ -477,6 +462,20 @@ color: #c084fc;
     </div>
     <div class="hint-box" id="hint-box"></div>
     <div class="result-msg" id="result-msg"></div>
+  </div>
+
+  <!-- ④ 단계별 풀이 가이드 -->
+
+  <div class="card">
+    <div class="card-title">단계별 풀이</div>
+    <div class="steps" id="steps-container"></div>
+  </div>
+
+  <!-- ⑤ 자유물체도 -->
+
+  <div class="card">
+    <div class="card-title">자유물체도 (Free Body Diagram)</div>
+    <div class="fbd-row" id="fbd-area"></div>
   </div>
 
 </div>
@@ -491,7 +490,7 @@ let forceMode = 'one';   // 'one': 왼→오 한쪽  /  'both': 양쪽
 // FL: 왼쪽에서 작용하는 힘(오른쪽 방향), FR: 오른쪽에서 작용하는 힘(왼쪽 방향)
 let masses = { mA:3, mB:2, mC:2, FL:30, FR:0 };
 let derived = {};
-let totalScore = 0;
+let totalScore = 0; // 미사용, 제거 예정
 let checked = false;
 
 // ═══════════════════════════════════════════════════
@@ -568,9 +567,15 @@ function _genIntegerAccel(s) {
   let attempts=0;
   while(attempts++<500) {
     const totalM = s===1 ? Math.floor(Math.random()*9)+2 : Math.floor(Math.random()*14)+3;
-    const a = Math.floor(Math.random()*9)+1;
+    // a를 부호 포함 생성: 양수=오른쪽, 음수=왼쪽 (both 모드에서만 음수 허용)
+    const aAbs = Math.floor(Math.random()*9)+1;
+    // both 모드에서 50% 확률로 왼쪽 방향
+    const aSign = (forceMode==='both' && Math.random()<0.5) ? -1 : 1;
+    const a = aAbs * aSign;
+
     if(forceMode==='one') {
-      const F=totalM*a;
+      // 한쪽만: FL만 존재, 항상 오른쪽
+      const F=totalM*aAbs;
       if(F<2||F>100) continue;
       if(s===1){
         const mA=Math.floor(Math.random()*(totalM-1))+1, mB=totalM-mA;
@@ -585,11 +590,15 @@ function _genIntegerAccel(s) {
         masses.mA=mA; masses.mB=mB; masses.mC=mC; masses.FL=F; masses.FR=0; return;
       }
     } else {
-      // 양쪽 힘: FL - FR = totalM*a
-      const net=totalM*a;
-      const FR=Math.floor(Math.random()*6)+1;  // 1~6
-      const FL=net+FR;
-      if(FL<2||FL>100||FR>80) continue;
+      // 양쪽 힘: FL - FR = net (net 부호로 방향 결정)
+      // 50% 확률로 오른쪽(FL>FR), 50%로 왼쪽(FR>FL)
+      const goRight = Math.random() < 0.5;
+      const net = totalM * aAbs * (goRight ? 1 : -1);
+      // 작은 쪽 힘을 먼저 1~15 사이로 정하고, 큰 쪽 = 작은쪽 + |net|
+      const smaller = Math.floor(Math.random()*15)+1;
+      const FL = goRight ? smaller + Math.abs(net) : smaller;
+      const FR = goRight ? smaller : smaller + Math.abs(net);
+      if(FL<1||FL>100||FR<1||FR>100) continue;
       if(s===1){
         const mA=Math.floor(Math.random()*(totalM-1))+1, mB=totalM-mA;
         if(mB<1||mA>10||mB>10) continue;
@@ -610,10 +619,10 @@ function buildSliders() {
   const area = document.getElementById('slider-area');
   const numC = scenario >= 2;
   const forceConfigs = forceMode==='one'
-    ? [{ key:'FL', label:'힘 F (N)', min:2, max:100, color:'#c084fc' }]
+    ? [{ key:'FL', label:'힘 F (N)', min:1, max:100, color:'#c084fc' }]
     : [
-        { key:'FL', label:'왼쪽 힘 F<sub style="font-size:0.7em">L</sub> (N)', min:2, max:100, color:'#c084fc' },
-        { key:'FR', label:'오른쪽 힘 F<sub style="font-size:0.7em">R</sub> (N)', min:0, max:100, color:'#f97316' },
+        { key:'FL', label:'왼쪽 힘 F<sub style="font-size:0.7em">L</sub> (N)', min:1, max:100, color:'#c084fc' },
+        { key:'FR', label:'오른쪽 힘 F<sub style="font-size:0.7em">R</sub> (N)', min:1, max:100, color:'#f97316' },
       ];
   const massConfigs = [
     { key:'mA', label:'A의 질량 (kg)', min:1, max:10, color:'#4f9eff' },
@@ -992,27 +1001,48 @@ function renderQuiz(){
   checked=false;
   document.getElementById('hint-box').classList.remove('show');
   clearFeedback();
-  let rows=[{id:'qa',label:'① 물체계의 가속도 a =',unit:'m/s²'}];
+
+  const {FAB,FBA,FBC,FCB,netA,netB,netC,a}=derived;
+  const both=forceMode==='both';
+  const aAbs=Math.abs(a);
+  const aDir=a>=0?'→':'←';
+
+  let rows;
   if(scenario===1){
-    rows.push({id:'qfab',label:'② A↔B 접촉력 크기 =',unit:'N'});
-    rows.push({id:'qfba',label:'③ B가 A에 미치는 힘 =',unit:'N'});
+    // 2물체: 접촉력 관련 + 알짜힘
+    rows=[
+      { id:'q_fba', label:'B가 A에 작용하는 힘의 크기', unit:'N',  ans: Math.abs(FBA) },
+      { id:'q_fab', label:'A가 B에 작용하는 힘의 크기', unit:'N',  ans: Math.abs(FAB) },
+      { id:'q_na',  label:'A의 알짜힘의 크기',           unit:'N',  ans: Math.abs(netA) },
+      { id:'q_nb',  label:'B의 알짜힘의 크기',           unit:'N',  ans: Math.abs(netB) },
+    ];
   } else {
-    rows.push({id:'qfab',label:'② A↔B 접촉력 크기 =',unit:'N'});
-    rows.push({id:'qfbc',label:'③ B↔C 접촉력 크기 =',unit:'N'});
-    rows.push({id:'qnb', label:'④ B의 알짜힘 =',unit:'N'});
+    // 3물체: 모든 접촉력 쌍 + 각 알짜힘
+    rows=[
+      { id:'q_fab', label:'A가 B에 작용하는 힘의 크기', unit:'N',  ans: Math.abs(FAB) },
+      { id:'q_fba', label:'B가 A에 작용하는 힘의 크기', unit:'N',  ans: Math.abs(FBA) },
+      { id:'q_fbc', label:'B가 C에 작용하는 힘의 크기', unit:'N',  ans: Math.abs(FBC) },
+      { id:'q_fcb', label:'C가 B에 작용하는 힘의 크기', unit:'N',  ans: Math.abs(FCB) },
+      { id:'q_na',  label:'A의 알짜힘의 크기',           unit:'N',  ans: Math.abs(netA) },
+      { id:'q_nb',  label:'B의 알짜힘의 크기',           unit:'N',  ans: Math.abs(netB) },
+      { id:'q_nc',  label:'C의 알짜힘의 크기',           unit:'N',  ans: Math.abs(netC) },
+    ];
   }
-  area.innerHTML=rows.map(r=>`
+
+  area.innerHTML = rows.map((r,i)=>`
     <div class="quiz-row">
-      <div class="quiz-label">${r.label}</div>
+      <div class="quiz-label">${i+1}. ${r.label}</div>
       <input type="number" class="quiz-input" id="${r.id}" step="any" placeholder="?">
       <span class="quiz-unit">${r.unit}</span>
       <span class="quiz-feedback" id="fb-${r.id}"></span>
     </div>`).join('');
+
+  // 현재 문제의 정답 맵을 전역 저장
+  window._quizRows = rows;
 }
 
 function getAnswers(){
-  const {a,FAB,FBA,FBC,netB}=derived;
-  return scenario===1 ? {qa:a,qfab:FAB,qfba:FBA} : {qa:a,qfab:FAB,qfbc:FBC,qnb:netB};
+  return Object.fromEntries((window._quizRows||[]).map(r=>[r.id, r.ans]));
 }
 
 function checkAnswers(){
@@ -1020,7 +1050,8 @@ function checkAnswers(){
   let allCorrect=true;
   Object.entries(answers).forEach(([id,ans])=>{
     const inp=document.getElementById(id); if(!inp) return;
-    const ok=Math.abs(parseFloat(inp.value)-ans)<0.05;
+    const val=parseFloat(inp.value);
+    const ok=!isNaN(val) && Math.abs(val - ans)<0.05;
     inp.classList.remove('correct','wrong'); inp.classList.add(ok?'correct':'wrong');
     const fb=document.getElementById('fb-'+id);
     fb.textContent=ok?'✓':`✗ (정답: ${fmt(ans)})`; fb.className='quiz-feedback '+(ok?'ok':'no');
@@ -1028,7 +1059,7 @@ function checkAnswers(){
   });
   const msg=document.getElementById('result-msg');
   msg.className='result-msg show '+(allCorrect?'correct-msg':'wrong-msg');
-  if(allCorrect){totalScore+=10; document.getElementById('hdr-score').textContent=totalScore; msg.textContent='🎉 모두 정답입니다! 자유물체도를 완벽하게 이해했습니다.';}
+  if(allCorrect){ msg.textContent='🎉 모두 정답입니다! 자유물체도를 완벽하게 이해했습니다.'; }
   else msg.textContent='일부 오답이 있습니다. 힌트를 보거나 단계별 풀이를 다시 확인해 보세요.';
   checked=true;
 }
