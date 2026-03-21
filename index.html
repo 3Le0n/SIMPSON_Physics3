@@ -707,10 +707,20 @@ function fmt(n) {
 // ═══════════════════════════════════════════════════
 function drawDiagram() {
   const canvas = document.getElementById('diagram-canvas');
-  const W = canvas.offsetWidth||400;
-  canvas.width=W; canvas.height=190;
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.offsetWidth || 400;
+  const cssH = 190;
+  // 실제 픽셀을 DPR배로 키우고 CSS 크기는 유지
+  canvas.width  = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,W,190);
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  // 이하 모든 좌표는 CSS 픽셀 기준
+  const W = cssW;
 
   const {mA,mB,mC,FL,FR} = masses;
   const a = derived.a;
@@ -948,7 +958,7 @@ function renderFBD(){
   const area=document.getElementById('fbd-area');
   area.innerHTML=objects.map(obj=>`
     <div class="fbd-card">
-      <canvas id="fbd-${obj.label.replace(/\s/,'')}" width="180" height="180"></canvas>
+      <canvas id="fbd-${obj.label.replace(/\s/,'')}" style="width:180px;height:180px;display:block;margin:0 auto;"></canvas>
       <h3 style="color:${obj.color}">${obj.label}</h3>
       <div class="fbd-forces">${obj.forces.replace(/\n/g,'<br>')}</div>
     </div>`).join('');
@@ -959,9 +969,15 @@ function renderFBD(){
 }
 
 function drawFBD(canvas,obj){
-  const ctx=canvas.getContext('2d');
-  ctx.clearRect(0,0,180,180);
-  const bs=44,bx=68,by=68;
+  const dpr = window.devicePixelRatio || 1;
+  const cssSize = 180;
+  canvas.width  = cssSize * dpr;
+  canvas.height = cssSize * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssSize, cssSize);
+
+  const bs=44, bx=68, by=68;
   ctx.fillStyle=obj.color+'22'; ctx.strokeStyle=obj.color; ctx.lineWidth=2;
   ctx.beginPath(); ctx.roundRect(bx,by,bs,bs,5); ctx.fill(); ctx.stroke();
   ctx.fillStyle=obj.color; ctx.font='bold 12px "JetBrains Mono"'; ctx.textAlign='center';
