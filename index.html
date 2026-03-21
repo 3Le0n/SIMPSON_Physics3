@@ -609,12 +609,11 @@ function _genIntegerAccel(s) {
 function buildSliders() {
   const area = document.getElementById('slider-area');
   const numC = scenario >= 2;
-  // 힘 슬라이더: 양쪽 모드면 FL, FR 각각 / 한쪽이면 FL만
   const forceConfigs = forceMode==='one'
     ? [{ key:'FL', label:'힘 F (N)', min:2, max:100, color:'#c084fc' }]
     : [
         { key:'FL', label:'왼쪽 힘 F<sub style="font-size:0.7em">L</sub> (N)', min:2, max:100, color:'#c084fc' },
-        { key:'FR', label:'오른쪽 힘 F<sub style="font-size:0.7em">R</sub> (N)', min:1, max:80, color:'#f97316' },
+        { key:'FR', label:'오른쪽 힘 F<sub style="font-size:0.7em">R</sub> (N)', min:0, max:100, color:'#f97316' },
       ];
   const massConfigs = [
     { key:'mA', label:'A의 질량 (kg)', min:1, max:10, color:'#4f9eff' },
@@ -630,11 +629,16 @@ function buildSliders() {
     </div>
   `).join('');
 
-  // 힌트 텍스트 업데이트
+  _updateForceHint();
+}
+
+function _updateForceHint() {
   const hint = document.getElementById('force-dir-hint');
   if(forceMode==='both') {
     const net = masses.FL - masses.FR;
-    hint.innerHTML = `알짜 외력 = F<sub>L</sub> − F<sub>R</sub> = ${masses.FL} − ${masses.FR} = <span style="color:#ffd166;font-weight:700;">${net} N</span> (오른쪽)`;
+    const dir = net > 0 ? '→ (오른쪽)' : net < 0 ? '← (왼쪽)' : '0 (정지)';
+    const col = net > 0 ? '#ffd166' : net < 0 ? '#f97316' : '#8b94b0';
+    hint.innerHTML = `알짜 외력 = F<sub>L</sub> − F<sub>R</sub> = ${masses.FL} − ${masses.FR} = <span style="color:${col};font-weight:700;">${Math.abs(net)} N ${dir}</span>`;
   } else {
     hint.textContent = '';
   }
@@ -643,12 +647,7 @@ function buildSliders() {
 function updateMass(key, val) {
   masses[key] = +val;
   document.getElementById('val-'+key).textContent = val;
-  // 힌트 갱신
-  if(forceMode==='both') {
-    const net=masses.FL-masses.FR;
-    document.getElementById('force-dir-hint').innerHTML =
-      `알짜 외력 = F<sub>L</sub> − F<sub>R</sub> = ${masses.FL} − ${masses.FR} = <span style="color:#ffd166;font-weight:700;">${net} N</span> (오른쪽)`;
-  }
+  _updateForceHint();
   compute(); renderSteps(); renderFBD(); renderQuiz(); drawDiagram(); clearFeedback();
 }
 
@@ -657,33 +656,33 @@ function updateMass(key, val) {
 // ═══════════════════════════════════════════════════
 function compute() {
   const {mA,mB,mC,FL,FR} = masses;
-  const Fnet = FL - FR;   // 알짜 외력 (항상 오른쪽)
+  // Fnet: 양수=오른쪽, 음수=왼쪽
+  const Fnet = FL - FR;
+  derived.Fnet = Fnet;
+  derived.dir  = Fnet >= 0 ? 'right' : 'left';   // 운동 방향
+  const absFnet = Math.abs(Fnet);
+
   if(scenario===1) {
-    // 힘: FL은 A의 왼쪽, FR은 B의 오른쪽에서 반대방향으로
     const totalM = mA+mB;
-    derived.a    = Fnet/totalM;
-    derived.Fnet = Fnet;
-    derived.netA = mA*derived.a;
-    derived.netB = mB*derived.a;
-    // A의 자유물체도: FL(오른쪽) + B→A(왼쪽) = netA
-    //   → B→A = netA - FL  (음수면 오른쪽)
-    // 하지만 물리적으로는 F→[A][B]← 구조이므로:
-    // A: FL(→) - FAB(←) = mA·a  →  FAB = FL - mA·a = FL - netA
-    // B: FAB(→) - FR(←) = mB·a  →  FAB = mB·a + FR = netB + FR  ✓
-    derived.FAB  = FL - derived.netA;   // A가 B에 미치는 힘 = A에서 B로 전달
-    derived.FBA  = derived.FAB;         // 크기 같음
+    // a는 부호 포함 (양수=오른쪽, 음수=왼쪽)
+    derived.a    = Fnet / totalM;
+    derived.netA = mA * derived.a;   // 부호 포함 알짜힘
+    derived.netB = mB * derived.a;
+    // 배치: FL→[A][B]←FR
+    // A: FL(→) − FAB(←) = netA  →  FAB = FL − netA  (양수=A→B 방향이 →)
+    // B: FAB(→) − FR(←) = netB  →  검증: netB+FR = FAB ✓
+    derived.FAB  = FL - derived.netA;
+    derived.FBA  = derived.FAB;   // 크기 같음 (방향은 반대)
   } else {
-    // F→[A][B][C]← (FL: A 왼쪽, FR: C 오른쪽)
     const totalM = mA+mB+mC;
-    derived.a    = Fnet/totalM;
-    derived.Fnet = Fnet;
-    derived.netA = mA*derived.a;
-    derived.netB = mB*derived.a;
-    derived.netC = mC*derived.a;
-    // A: FL(→) - FAB(←) = netA  →  FAB = FL - netA
+    derived.a    = Fnet / totalM;
+    derived.netA = mA * derived.a;
+    derived.netB = mB * derived.a;
+    derived.netC = mC * derived.a;
+    // A: FL(→) − FAB(←) = netA  →  FAB = FL − netA
     derived.FAB  = FL - derived.netA;
     derived.FBA  = derived.FAB;
-    // C: FBC(→) - FR(←) = netC  →  FBC = netC + FR
+    // C: FBC(→) − FR(←) = netC  →  FBC = netC + FR
     derived.FBC  = derived.netC + FR;
     derived.FCB  = derived.FBC;
   }
@@ -742,14 +741,26 @@ function drawDiagram() {
     ctx.beginPath(); ctx.roundRect(bx,by,bW,bH,6); ctx.stroke();
     ctx.fillStyle='#fff'; ctx.font='bold 13px "JetBrains Mono"'; ctx.textAlign='center';
     obj.label.split('\n').forEach((ln,i)=>ctx.fillText(ln,bx+bW/2,by+bH/2-4+i*15));
-    // 가속도 화살표 (위)
+
+    // 가속도 화살표 (위) — a의 부호에 따라 방향 결정
     const ax=bx+bW/2, ay=by-12;
+    const aRight = a >= 0;   // true: 오른쪽, false: 왼쪽
     ctx.strokeStyle='#ffd166'; ctx.lineWidth=1.5; ctx.setLineDash([3,2]);
-    ctx.beginPath(); ctx.moveTo(ax-14,ay); ctx.lineTo(ax+10,ay); ctx.stroke();
+    if(a === 0) {
+      // 정지: 짧은 선만
+      ctx.beginPath(); ctx.moveTo(ax-10,ay); ctx.lineTo(ax+10,ay); ctx.stroke();
+    } else if(aRight) {
+      ctx.beginPath(); ctx.moveTo(ax-14,ay); ctx.lineTo(ax+10,ay); ctx.stroke();
+      ctx.setLineDash([]);
+      arrowHead(ctx,ax+10,ay,0,'#ffd166');
+    } else {
+      ctx.beginPath(); ctx.moveTo(ax+14,ay); ctx.lineTo(ax-10,ay); ctx.stroke();
+      ctx.setLineDash([]);
+      arrowHead(ctx,ax-10,ay,Math.PI,'#ffd166');
+    }
     ctx.setLineDash([]);
-    arrowHead(ctx,ax+10,ay,0,'#ffd166');
     ctx.fillStyle='#ffd166'; ctx.font='bold 9px "JetBrains Mono"'; ctx.textAlign='center';
-    ctx.fillText(`a=${fmt(a)}`,ax,ay-5);
+    ctx.fillText(`a=${fmt(Math.abs(a))}${a===0?'':aRight?'→':'←'}`,ax,ay-5);
   });
 
   const firstX=startX, lastX=startX+(objects.length-1)*bW;
@@ -788,7 +799,15 @@ function renderSteps() {
   const {a,Fnet,netA,netB,netC,FAB,FBA,FCB,FBC}=derived;
   const totalM=scenario===1?mA+mB:mA+mB+mC;
   const both=forceMode==='both';
-  const Fexpr= both ? `F<sub>L</sub>−F<sub>R</sub> = ${FL}−${FR}` : `F = ${FL}`;
+
+  // 방향 헬퍼: 양수=오른쪽(→), 음수=왼쪽(←)
+  const dir  = v => v > 0 ? '→' : v < 0 ? '←' : '=0';
+  const adir = a >= 0 ? '→' : '←';
+  const Fabs = Math.abs(Fnet);
+  const netDirLabel = Fnet > 0 ? '(→ 오른쪽)' : Fnet < 0 ? '(← 왼쪽)' : '(정지)';
+  const Fexpr = both
+    ? `F<sub>L</sub>−F<sub>R</sub> = ${FL}−${FR} = <span class="hi-val">${fmt(Fnet)} N</span> ${netDirLabel}`
+    : `F = <span class="hi-val">${FL} N</span> (→)`;
 
   const steps=[];
 
@@ -796,41 +815,45 @@ function renderSteps() {
   steps.push({
     title:'전체 물체계에 운동 방정식 적용',
     body:`여러 물체가 함께 움직일 때, <strong>계 전체</strong>에 뉴턴 제2법칙을 적용하면
-물체 사이의 내력(접촉력)은 상쇄되어 사라집니다.<br>
+물체 사이의 내력(접촉력)은 상쇄됩니다.<br>
 물체계 전체에 작용하는 <strong>알짜 외력</strong>만 고려합니다.`,
     formula:`<div class="eq-label">알짜 외력 = 전체 질량 × 가속도</div>
-${Fexpr} = (${mA}+${mB}${scenario>=2?'+'+mC:''}) × a<br>
-<span class="hi-val">${fmt(Fnet)}</span> = ${totalM} × a<br>
-→ a = ${fmt(Fnet)}/${totalM} = <span class="hi-val">${fmt(a)} m/s²</span>`
+${Fexpr}<br>
+${fmt(Fnet)} = (${mA}+${mB}${scenario>=2?'+'+mC:''}) × a<br>
+→ a = ${fmt(Fnet)}/${totalM} = <span class="hi-val">${fmt(a)} m/s² ${adir}</span>`
   });
 
   // STEP 2
-  let s2f=`물체 A: F<sub>알짜,A</sub> = ${mA}×${fmt(a)} = <span class="hi-A">${fmt(netA)} N</span><br>
-물체 B: F<sub>알짜,B</sub> = ${mB}×${fmt(a)} = <span class="hi-B">${fmt(netB)} N</span>`;
-  if(scenario>=2) s2f+=`<br>물체 C: F<sub>알짜,C</sub> = ${mC}×${fmt(a)} = <span class="hi-C">${fmt(netC)} N</span>`;
+  // 알짜힘의 방향도 부호로 표기
+  let s2f=`물체 A: F<sub>알짜,A</sub> = ${mA}×(${fmt(a)}) = <span class="hi-A">${fmt(netA)} N ${dir(netA)}</span><br>
+물체 B: F<sub>알짜,B</sub> = ${mB}×(${fmt(a)}) = <span class="hi-B">${fmt(netB)} N ${dir(netB)}</span>`;
+  if(scenario>=2) s2f+=`<br>물체 C: F<sub>알짜,C</sub> = ${mC}×(${fmt(a)}) = <span class="hi-C">${fmt(netC)} N ${dir(netC)}</span>`;
   steps.push({title:'각 물체의 알짜힘 계산',
-    body:`계의 가속도 <strong>a = ${fmt(a)} m/s²</strong>로 각 물체의 알짜힘을 계산합니다.<br><em>알짜힘 = 질량 × 가속도</em> (뉴턴 제2법칙)`,
+    body:`계의 가속도 <strong>a = ${fmt(Math.abs(a))} m/s² ${adir}</strong>로 각 물체의 알짜힘을 계산합니다.<br><em>알짜힘 = 질량 × 가속도</em> (뉴턴 제2법칙)`,
     formula:s2f});
 
-  // STEP 3
+  // STEP 3 — 접촉력. FAB는 항상 양수(크기)로 저장됨
   let s3b, s3f;
   if(scenario===1){
-    const FLlabel = both?`F<sub>L</sub>=${FL}N`:`F=${FL}N`;
-    const FRlabel = both?`F<sub>R</sub>=${FR}N`:'';
-    s3b=`<strong>물체 A</strong> 알짜힘 = ${fmt(netA)} N (→)<br>
-A에 작용: ${FLlabel}(→)${ both?`, ${FRlabel} 없음`:'' } + B가 A에 미치는 힘(←)<br>
-→ B→A = ${FL} − ${fmt(netA)} = <span class="hi-A">${fmt(FBA)} N</span> (←)<br><br>
-<strong>물체 B</strong> 알짜힘 = ${fmt(netB)} N (→)<br>
-B에 작용: A→B(→)${ both?` + ${FRlabel}(←)`:'' }<br>
-→ A→B = ${fmt(netB)}${ both?` + ${FR}`:'' } = <span class="hi-B">${fmt(FAB)} N</span> (→)`;
-    s3f=`작용·반작용: A↔B 접촉력 = <span class="hi-val">${fmt(FAB)} N</span>`;
+    // A에 작용: FL(→), B→A(?), 알짜=netA
+    // FAB = FL - netA (양수: A가 B를 →방향으로 밈, 즉 접촉면에서 오른쪽 힘)
+    const FBAdir = FAB > 0 ? '→' : '←';  // B가 A에 미치는 힘은 FAB와 반대
+    const FBAphys = FAB;  // 크기
+    s3b=`<strong>물체 A</strong> — 알짜힘 = ${fmt(netA)} N ${dir(netA)}<br>
+A에 작용: F${both?'<sub>L</sub>':''}=${FL}N(→) + B→A = netA<br>
+∴ B→A = ${fmt(netA)} − ${FL} = <span class="hi-A">${fmt(netA-FL)} N</span> → 크기 <span class="hi-A">${fmt(FBAphys)} N</span>, 방향: ${netA>=FL?'→':'←'}<br><br>
+<strong>물체 B</strong> — 알짜힘 = ${fmt(netB)} N ${dir(netB)}<br>
+B에 작용: A→B(${FAB>=0?'→':'←'})${both?` + F<sub>R</sub>=${FR}N(←)`:''}<br>
+검증: ${fmt(FAB)}${both?`−${FR}`:''}= ${fmt(FAB - FR)} ≈ ${fmt(netB)} N ✓`;
+    s3f=`A↔B 접촉력 크기 = <span class="hi-val">${fmt(FAB)} N</span>`;
   } else {
-    const FRlabel = both?`F<sub>R</sub>=${FR}N`:'없음';
-    s3b=`<strong>물체 A</strong>: F<sub>L</sub>(→) − A↔B 접촉력(←) = F<sub>알짜,A</sub><br>
-→ A↔B 접촉력 = ${FL} − ${fmt(netA)} = <span class="hi-A">${fmt(FAB)} N</span><br><br>
-<strong>물체 C</strong>: B↔C 접촉력(→) − ${ both?`F<sub>R</sub>(←)`:'0' } = F<sub>알짜,C</sub><br>
-→ B↔C 접촉력 = ${fmt(netC)}${ both?` + ${FR}`:'' } = <span class="hi-C">${fmt(FBC)} N</span><br><br>
-<strong>물체 B 확인</strong>: ${fmt(FAB)} − ${fmt(FBC)} = ${fmt(FAB-FBC)} ≈ F<sub>알짜,B</sub> = ${fmt(netB)} ✓`;
+    s3b=`<strong>물체 A</strong> — 알짜힘 = ${fmt(netA)} N ${dir(netA)}<br>
+A: F<sub>L</sub>(→) − A↔B접촉력(←) = netA<br>
+→ A↔B접촉력 = ${FL}−(${fmt(netA)}) = <span class="hi-A">${fmt(FAB)} N</span><br><br>
+<strong>물체 C</strong> — 알짜힘 = ${fmt(netC)} N ${dir(netC)}<br>
+C: B↔C접촉력(→)${both?`−F<sub>R</sub>(←)`:''}= netC<br>
+→ B↔C접촉력 = ${fmt(netC)}${both?`+${FR}`:''}= <span class="hi-C">${fmt(FBC)} N</span><br><br>
+<strong>물체 B 확인</strong>: A↔B(→)−B↔C(←) = ${fmt(FAB)}−${fmt(FBC)} = ${fmt(parseFloat((FAB-FBC).toFixed(4)))} ≈ ${fmt(netB)} N ✓`;
     s3f=`A↔B: <span class="hi-val">${fmt(FAB)} N</span> &nbsp;|&nbsp; B↔C: <span class="hi-val">${fmt(FBC)} N</span>`;
   }
   steps.push({title:'접촉력(내력) 결정 — 자유물체도 핵심', body:s3b, formula:s3f});
@@ -839,7 +862,7 @@ B에 작용: A→B(→)${ both?` + ${FRlabel}(←)`:'' }<br>
   steps.push({title:'작용·반작용 법칙 확인',
     body:`두 물체가 접촉할 때,<br><strong>A가 B에 미치는 힘</strong>과 <strong>B가 A에 미치는 힘</strong>은<br>크기가 같고 방향이 반대 — <em>작용·반작용 쌍</em>`,
     formula: scenario===1
-      ? `A→B: <span class="hi-B">${fmt(FAB)} N (←)</span> &nbsp;↔&nbsp; B→A: <span class="hi-A">${fmt(FBA)} N (→)</span>`
+      ? `A→B: <span class="hi-A">${fmt(FAB)} N (→)</span> &nbsp;↔&nbsp; B→A: <span class="hi-A">${fmt(FBA)} N (←)</span>`
       : `A→B: <span class="hi-A">${fmt(FAB)} N (→)</span> ↔ B→A: <span class="hi-A">${fmt(FBA)} N (←)</span><br>B→C: <span class="hi-C">${fmt(FBC)} N (→)</span> ↔ C→B: <span class="hi-C">${fmt(FCB)} N (←)</span>`
   });
 
@@ -857,52 +880,58 @@ function toggleStep(i){ document.getElementById('step-'+i).classList.toggle('act
 // ═══════════════════════════════════════════════════
 function renderFBD(){
   const {mA,mB,mC,FL,FR}=masses;
-  const {netA,netB,netC,FAB,FBA,FCB,FBC}=derived;
+  const {a,netA,netB,netC,FAB,FBA,FCB,FBC}=derived;
   const both=forceMode==='both';
   const FLlbl=both?`F_L\n${FL}N`:`F\n${FL}N`;
   const FRlbl=`F_R\n${FR}N`;
+
+  // FAB > 0 → A가 B를 → 방향으로 밈 (즉 A→B: →, B→A: ←)
+  // FAB < 0 → A가 B를 ← 방향으로 밈 (즉 A→B: ←, B→A: →)  (FL < FR 상황)
+  const dirAtoB = FAB >= 0 ? 'right' : 'left';
+  const dirBtoA = FAB >= 0 ? 'left'  : 'right';
+  const dirBtoC = FBC >= 0 ? 'right' : 'left';
+  const dirCtoB = FBC >= 0 ? 'left'  : 'right';
 
   let objects;
   if(scenario===1){
     objects=[
       { label:'물체 A', color:'#4f9eff', arrows:[
-          {dir:'right', label:FLlbl,   color:'#c084fc'},
-          {dir:'left',  label:`B→A\n${fmt(FBA)}N`, color:'#4f9eff'},
-          ...(both&&FR>0?[{dir:'left',label:FRlbl,color:'#f97316'}]:[]),
-          {dir:'down',label:'중력',color:'#666'},{dir:'up',label:'수직항력',color:'#888'},
+          {dir:'right',  label:FLlbl,              color:'#c084fc'},          // FL 항상 →
+          {dir:dirBtoA,  label:`B→A\n${fmt(Math.abs(FAB))}N`, color:'#4f9eff'},
+          {dir:'down',label:'중력',color:'#555'},{dir:'up',label:'수직항력',color:'#888'},
         ],
-        forces:`• →: ${both?'F_L':' F'}=${FL}N\n• ←: B→A=${fmt(FBA)}N\n• 알짜힘: ${fmt(netA)}N`
+        forces:`• →: ${both?'F_L':' F'}=${FL}N\n• ${dirBtoA==='left'?'←':'→'}: B→A=${fmt(Math.abs(FBA))}N\n• 알짜힘: ${fmt(Math.abs(netA))}N ${netA>=0?'→':'←'}`
       },
       { label:'물체 B', color:'#ff6b6b', arrows:[
-          {dir:'right',label:`A→B\n${fmt(FAB)}N`,color:'#4f9eff'},
+          {dir:dirAtoB,  label:`A→B\n${fmt(Math.abs(FAB))}N`, color:'#4f9eff'},
           ...(both&&FR>0?[{dir:'left',label:FRlbl,color:'#f97316'}]:[]),
-          {dir:'down',label:'중력',color:'#666'},{dir:'up',label:'수직항력',color:'#888'},
+          {dir:'down',label:'중력',color:'#555'},{dir:'up',label:'수직항력',color:'#888'},
         ],
-        forces:`• →: A→B=${fmt(FAB)}N${both?`\n• ←: F_R=${FR}N`:''}\n• 알짜힘: ${fmt(netB)}N`
+        forces:`• ${dirAtoB==='right'?'→':'←'}: A→B=${fmt(Math.abs(FAB))}N${both?`\n• ←: F_R=${FR}N`:''}\n• 알짜힘: ${fmt(Math.abs(netB))}N ${netB>=0?'→':'←'}`
       },
     ];
   } else {
     objects=[
       { label:'물체 A', color:'#4f9eff', arrows:[
-          {dir:'right',label:FLlbl,color:'#c084fc'},
-          {dir:'left', label:`B→A\n${fmt(FBA)}N`,color:'#4f9eff'},
-          {dir:'down',label:'중력',color:'#666'},{dir:'up',label:'수직항력',color:'#888'},
+          {dir:'right',  label:FLlbl,              color:'#c084fc'},
+          {dir:dirBtoA,  label:`B→A\n${fmt(Math.abs(FAB))}N`, color:'#4f9eff'},
+          {dir:'down',label:'중력',color:'#555'},{dir:'up',label:'수직항력',color:'#888'},
         ],
-        forces:`• →: ${both?'F_L':' F'}=${FL}N\n• ←: B→A=${fmt(FBA)}N\n• 알짜힘: ${fmt(netA)}N`
+        forces:`• →: ${both?'F_L':' F'}=${FL}N\n• ${dirBtoA==='left'?'←':'→'}: B→A=${fmt(Math.abs(FBA))}N\n• 알짜힘: ${fmt(Math.abs(netA))}N ${netA>=0?'→':'←'}`
       },
       { label:'물체 B', color:'#ff6b6b', arrows:[
-          {dir:'right',label:`A→B\n${fmt(FAB)}N`,color:'#4f9eff'},
-          {dir:'left', label:`C→B\n${fmt(FCB)}N`,color:'#6bffb8'},
-          {dir:'down',label:'중력',color:'#666'},{dir:'up',label:'수직항력',color:'#888'},
+          {dir:dirAtoB,  label:`A→B\n${fmt(Math.abs(FAB))}N`, color:'#4f9eff'},
+          {dir:dirCtoB,  label:`C→B\n${fmt(Math.abs(FCB))}N`, color:'#6bffb8'},
+          {dir:'down',label:'중력',color:'#555'},{dir:'up',label:'수직항력',color:'#888'},
         ],
-        forces:`• →: A→B=${fmt(FAB)}N\n• ←: C→B=${fmt(FCB)}N\n• 알짜힘: ${fmt(netB)}N`
+        forces:`• ${dirAtoB==='right'?'→':'←'}: A→B=${fmt(Math.abs(FAB))}N\n• ${dirCtoB==='left'?'←':'→'}: C→B=${fmt(Math.abs(FCB))}N\n• 알짜힘: ${fmt(Math.abs(netB))}N ${netB>=0?'→':'←'}`
       },
       { label:'물체 C', color:'#6bffb8', arrows:[
-          {dir:'right',label:`B→C\n${fmt(FBC)}N`,color:'#ff6b6b'},
+          {dir:dirBtoC,  label:`B→C\n${fmt(Math.abs(FBC))}N`, color:'#ff6b6b'},
           ...(both&&FR>0?[{dir:'left',label:FRlbl,color:'#f97316'}]:[]),
-          {dir:'down',label:'중력',color:'#666'},{dir:'up',label:'수직항력',color:'#888'},
+          {dir:'down',label:'중력',color:'#555'},{dir:'up',label:'수직항력',color:'#888'},
         ],
-        forces:`• →: B→C=${fmt(FBC)}N${both?`\n• ←: F_R=${FR}N`:''}\n• 알짜힘: ${fmt(netC)}N`
+        forces:`• ${dirBtoC==='right'?'→':'←'}: B→C=${fmt(Math.abs(FBC))}N${both?`\n• ←: F_R=${FR}N`:''}\n• 알짜힘: ${fmt(Math.abs(netC))}N ${netC>=0?'→':'←'}`
       },
     ];
   }
@@ -1005,14 +1034,19 @@ function checkAnswers(){
 }
 
 function showHint(){
-  const {a,FAB,FBC,netB}=derived;
+  const {a,FAB,FBC,netA,netC}=derived;
   const {FL,FR,mA,mB,mC}=masses;
   const totalM=scenario===1?mA+mB:mA+mB+mC;
   const Fnet=FL-FR;
   const both=forceMode==='both';
-  let text=`💡 힌트:<br>1. 전체 질량 = ${totalM} kg, 알짜 외력 = ${both?`${FL}−${FR}=`:''}${Fnet} N<br>2. a = ${Fnet}/${totalM} = <strong>${fmt(a)} m/s²</strong><br>`;
-  if(scenario===1) text+=`3. A에 작용: FL(→)${both?`+FR(←)`:''}이므로 B→A = ${FL}−${fmt(derived.netA)}${both?`+${FR}`:''} = <strong>${fmt(derived.FBA)} N</strong>`;
-  else text+=`3. A↔B 접촉력 = FL−F<sub>알짜,A</sub> = ${FL}−${fmt(derived.netA)} = <strong>${fmt(FAB)} N</strong><br>4. B↔C 접촉력 = F<sub>알짜,C</sub>${both?`+FR`:''}= ${fmt(derived.netC)}${both?`+${FR}`:''} = <strong>${fmt(FBC)} N</strong>`;
+  const adir=a>=0?'→':'←';
+  const netDir=Fnet>0?'→ (오른쪽)':Fnet<0?'← (왼쪽)':'0';
+  let text=`💡 힌트:<br>1. 전체 질량 = ${totalM} kg, 알짜 외력 = ${both?`${FL}−${FR}=`:''}${fmt(Fnet)} N ${netDir}<br>2. a = ${fmt(Fnet)}/${totalM} = <strong>${fmt(Math.abs(a))} m/s² ${adir}</strong><br>`;
+  if(scenario===1){
+    text+=`3. B→A 크기 = FL−F<sub>알짜,A</sub> = ${FL}−(${fmt(netA)}) = <strong>${fmt(Math.abs(FAB))} N</strong><br>4. A→B = 작용·반작용으로 동일 크기`;
+  } else {
+    text+=`3. A↔B접촉력 = FL−F<sub>알짜,A</sub> = ${FL}−(${fmt(netA)}) = <strong>${fmt(FAB)} N</strong><br>4. B↔C접촉력 = F<sub>알짜,C</sub>${both?`+FR`:''}= ${fmt(netC)}${both?`+${FR}`:''} = <strong>${fmt(FBC)} N</strong>`;
+  }
   document.getElementById('hint-box').innerHTML=text;
   document.getElementById('hint-box').classList.add('show');
 }
